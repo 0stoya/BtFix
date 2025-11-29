@@ -1,0 +1,18 @@
+{
+  "name": "0stoya/btfix",
+  "description": "Fixes malformed SQL aliases (main_table.main_table) caused by Braintree or other extensions in Magento 2 admin order grid.",
+  "type": "magento2-module",
+  "license": "MIT",
+  "version": "1.0.0",
+  "autoload": {
+    "files": [
+      "registration.php"
+    ],
+    "psr-4": {
+      "Ostoya\\BtFix\\": ""
+    }
+  },
+  "require": {
+    "magento/framework": ">=102.0"
+  }
+}
