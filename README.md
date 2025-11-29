@@ -51,7 +51,7 @@ No core overrides, no rewrites — safe and upgrade-proof.
 
 ```php
 <?php
-namespace TR\CustomerPricing\Plugin;
+namespace 0stoya\BtFix\Plugin;
 
 use Magento\Sales\Model\ResourceModel\Order\Grid\Collection;
 
