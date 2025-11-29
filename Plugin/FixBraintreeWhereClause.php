@@ -1,14 +1,10 @@
 <?php
-namespace 0stoya\BtFix\Plugin;
+namespace Ostoya\BtFix\Plugin;
 
 use Magento\Sales\Model\ResourceModel\Order\Grid\Collection;
 
 class FixBraintreeWhereClause
 {
-    /**
-     * Fix broken aliases like `main_table`.`main_table`.created_at
-     * before the grid collection loads.
-     */
     public function beforeLoad(
         Collection $subject,
         bool $printQuery = false,
@@ -16,7 +12,6 @@ class FixBraintreeWhereClause
     ): array {
         $select = $subject->getSelect();
 
-        // Parts to clean – you can add 'having' etc. if needed later.
         $partsToClean = ['where'];
 
         foreach ($partsToClean as $part) {
@@ -31,7 +26,6 @@ class FixBraintreeWhereClause
                     return;
                 }
 
-                // Backticked pattern: `main_table`.`main_table`.field
                 if (strpos($value, '`main_table`.`main_table`.') !== false) {
                     $value = str_replace(
                         '`main_table`.`main_table`.',
@@ -40,7 +34,6 @@ class FixBraintreeWhereClause
                     );
                 }
 
-                // Non-backticked pattern: main_table.main_table.field
                 if (strpos($value, 'main_table.main_table.') !== false) {
                     $value = str_replace(
                         'main_table.main_table.',
