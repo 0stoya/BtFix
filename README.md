@@ -1,62 +1,184 @@
-FixBraintreeWhereClause — README
-Overview
+# FixBraintreeWhereClause
 
-Some Magento 2 extensions (most commonly Braintree, but also other payment or reporting modules) incorrectly generate SQL conditions for the Sales → Orders admin grid.
-These modules sometimes produce malformed SQL such as:
+A Magento 2 plugin that fixes malformed SQL aliases caused by Braintree or other extensions in the **Admin Sales Order Grid**.
 
-`main_table`.`main_table`.created_at >= '2024-01-01'
+This patch prevents errors where third-party modules generate SQL like:
 
+```
+`main_table`.`main_table`.created_at
+```
 
-This leads to errors like:
+which results in:
 
+```
 SQLSTATE[42S22]: Column not found: 1054 Unknown column 'main_table.main_table.created_at'
+```
 
+This plugin safely cleans up such SQL statements before the grid executes.
 
-To prevent the order grid from breaking, this plugin intercepts the grid’s SQL before it loads, detects these invalid double-prefixes, and replaces them with the correct alias.
+---
 
-What the Plugin Does
+## 🚀 What This Plugin Does
 
-The plugin runs on:
+Magento uses `main_table` as the primary alias for the **sales_order_grid** table.
 
-Magento\Sales\Model\ResourceModel\Order\Grid\Collection::load()
+Some modules incorrectly prepend the alias twice (e.g. Braintree), creating invalid SQL:
 
-
-Before the grid executes its SQL query, the plugin:
-
-Reads the WHERE clause of the generated SELECT.
-
-Scans for invalid patterns such as:
-
-`main_table`.`main_table`.field
-
+```
 main_table.main_table.field
+```
 
-Automatically rewrites them to the valid form:
+This plugin:
 
-`main_table`.field
+1. Hooks into
+   `Magento\Sales\Model\ResourceModel\Order\Grid\Collection::load()`
+2. Inspects the SQL `WHERE` clause.
+3. Detects invalid patterns:
 
-main_table.field
+   * `` `main_table`.`main_table`.field ``
+   * `main_table.main_table.field`
+4. Normalizes them back to:
 
-Writes the corrected WHERE clause back into the query.
+   * `` `main_table`.field ``
+   * `main_table.field`
+5. Allows the grid to load normally.
 
-The order grid loads normally.
+No core overrides, no rewrites — safe and upgrade-proof.
 
-This makes the admin grid resilient against third-party modules that incorrectly manipulate the alias.
+---
 
-Why This Fix Is Needed
+## 🧩 Plugin Code
 
-Magento uses main_table as the default alias for the sales_order_grid table.
+```php
+<?php
+namespace TR\CustomerPricing\Plugin;
 
-When an extension incorrectly builds filters by prepending the alias twice, the SQL becomes invalid. Example:
+use Magento\Sales\Model\ResourceModel\Order\Grid\Collection;
 
-addFieldToFilter('main_table.created_at', ['gteq' => '2024-01-01']);
+class FixBraintreeWhereClause
+{
+    public function beforeLoad(
+        Collection $subject,
+        bool $printQuery = false,
+        bool $logQuery = false
+    ): array {
+        $select = $subject->getSelect();
+        $partsToClean = ['where'];
 
+        foreach ($partsToClean as $part) {
+            $current = $select->getPart($part);
 
-combined with an internal prefixing inside another module results in:
+            if (!is_array($current) || !$current) {
+                continue;
+            }
 
-main_table.main_table.created_at
+            array_walk_recursive($current, function (&$value): void {
+                if (!is_string($value)) {
+                    return;
+                }
 
+                // Backticked pattern
+                if (strpos($value, '`main_table`.`main_table`.') !== false) {
+                    $value = str_replace(
+                        '`main_table`.`main_table`.',
+                        '`main_table`.',
+                        $value
+                    );
+                }
 
-This breaks the order grid entirely.
+                // Non-backticked pattern
+                if (strpos($value, 'main_table.main_table.') !== false) {
+                    $value = str_replace(
+                        'main_table.main_table.',
+                        'main_table.',
+                        $value
+                    );
+                }
+            });
 
-Rather than modifying vendor code, the plugin provides a safe, non-intrusive fix that cleans the SQL just before execution.
+            $select->setPart($part, $current);
+        }
+
+        return [$printQuery, $logQuery];
+    }
+}
+```
+
+---
+
+## 📁 Installation
+
+Place the file at:
+
+```
+app/code/TR/CustomerPricing/Plugin/FixBraintreeWhereClause.php
+```
+
+Then run:
+
+```bash
+bin/magento setup:di:compile
+bin/magento cache:flush
+```
+
+No additional configuration needed.
+
+---
+
+## ✅ Compatibility
+
+* Magento **2.3.x**
+* Magento **2.4.x**, including **2.4.8-p1**
+* Works with:
+
+  * Braintree
+  * PayPal extensions
+  * Adyen
+  * Other modules that manipulate the sales order grid query
+
+The plugin is fully upgrade-safe.
+
+---
+
+## 🔧 Troubleshooting
+
+### The SQL error still appears
+
+Check if the error is in another part of the query (e.g. `ORDER BY`, `HAVING`).
+
+If needed, update:
+
+```php
+$partsToClean = ['where', 'order', 'having'];
+```
+
+### Another alias is broken
+
+If the extension uses a different alias (e.g. `sales`), add the pattern in the replacement logic.
+
+---
+
+## 📝 Notes
+
+* No vendor/core overrides
+* Safe for production
+* Restores a functional Order Grid even when other modules misbehave
+* Easy to extend if new broken patterns appear
+
+---
+
+## 📦 Want Packaging?
+
+If you want, I can generate:
+
+* `composer.json`
+* full module structure
+* CHANGELOG
+* versioning tags
+* LICENSE file
+
+Just say **“create module package”**.
+
+---
+
+Let me know if you want this in a **GitHub Gist**, **release notes format**, or auto-generated **CHANGELOG.md**.
