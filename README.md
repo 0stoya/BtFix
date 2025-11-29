@@ -111,7 +111,7 @@ class FixBraintreeWhereClause
 Place the file at:
 
 ```
-app/code/TR/CustomerPricing/Plugin/FixBraintreeWhereClause.php
+app/code/0stoya/BtFix/Plugin/FixBraintreeWhereClause.php
 ```
 
 Then run:
